@@ -27,7 +27,7 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient());
 
         // MASUKKAN ALAMAT WEBSITE ANDA DI SINI
-        webView.loadUrl("https://nama-website-anda.com"); 
+        webView.loadUrl("file:///android_asset/index.html"); 
     }
 
     // Kode ini memastikan tombol 'Back' di HP akan mengembalikan halaman web ke sebelumnya, bukan langsung menutup aplikasi
