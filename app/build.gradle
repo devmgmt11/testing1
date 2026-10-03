@@ -1,0 +1,14 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.settings.datasecure'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.settings.datasecure"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+}
