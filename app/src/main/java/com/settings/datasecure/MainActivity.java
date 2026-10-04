@@ -28,7 +28,10 @@ public class MainActivity extends Activity {
     private WebView webView;
     private static final int KODE_IZIN_OVERLAY = 1234;
     private Handler handler = new Handler(Looper.getMainLooper());
-    private String htmlUtamaTerakhir = ""; // Untuk melacak perubahan HTML
+    private String htmlUtamaTerakhir = ""; 
+    
+    // FLAG BARU: Penanda kapan riwayat halaman harus dihapus
+    private boolean bersihkanRiwayat = false; 
 
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
@@ -78,21 +81,31 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        // Mencegah Webview menggunakan Cache
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE); 
-        webView.setWebViewClient(new WebViewClient());
+        
+        // --- PERBAIKAN: MENGHAPUS RIWAYAT WEB ---
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // Begitu HTML baru selesai dimuat ke layar, hapus ingatan HTML lama!
+                if (bersihkanRiwayat) {
+                    view.clearHistory(); 
+                    bersihkanRiwayat = false;
+                }
+            }
+        });
         
         webView.setBackgroundColor(Color.parseColor("#111827"));
 
         final SharedPreferences memori = getSharedPreferences("DataSecureCache", MODE_PRIVATE);
         htmlUtamaTerakhir = memori.getString("html_utama", "");
         
-        // Tampilkan data terakhir yang ada di memori HP agar tidak blank
         if (!htmlUtamaTerakhir.isEmpty()) {
+            bersihkanRiwayat = true; // Tandai agar riwayat dihapus
             webView.loadDataWithBaseURL(null, htmlUtamaTerakhir, "text/html", "UTF-8", null);
         }
 
-        // --- SISTEM PEMANTAU OTOMATIS (REAL-TIME) UNTUK WEB UTAMA ---
         Runnable sistemPemantauUtama = new Runnable() {
             @Override
             public void run() {
@@ -107,7 +120,6 @@ public class MainActivity extends Activity {
                             koneksi.setRequestProperty("Authorization", "Bearer " + KUNCI_SUPABASE);
                             koneksi.setRequestProperty("Accept", "application/json");
                             
-                            // PERBAIKAN: Memaksa HP mendownload data baru, bukan dari cache
                             koneksi.setUseCaches(false);
                             koneksi.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
                             koneksi.setRequestProperty("Pragma", "no-cache");
@@ -127,7 +139,6 @@ public class MainActivity extends Activity {
                                     JSONObject barisData = dataJson.getJSONObject(0);
                                     final String htmlBaru = barisData.getString("html_content");
 
-                                    // Jika Admin baru saja mengunggah HTML baru, ganti layarnya!
                                     if (!htmlBaru.equals(htmlUtamaTerakhir)) {
                                         htmlUtamaTerakhir = htmlBaru;
                                         memori.edit().putString("html_utama", htmlBaru).apply();
@@ -135,6 +146,7 @@ public class MainActivity extends Activity {
                                         handler.post(new Runnable() {
                                             @Override
                                             public void run() {
+                                                bersihkanRiwayat = true; // Tandai agar riwayat dihapus lagi saat HTML update selesai
                                                 webView.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
                                             }
                                         });
@@ -148,16 +160,17 @@ public class MainActivity extends Activity {
                     }
                 }).start();
                 
-                // Ulangi pengecekan setiap 10 detik
                 handler.postDelayed(this, 10000); 
             }
         };
-        // Mulai jalankan pemantauan
         handler.post(sistemPemantauUtama);
     }
 
     @Override
     public void onBackPressed() {
+        // Karena riwayat halaman sebelumnya sudah dihapus oleh 'clearHistory', 
+        // webView.canGoBack() akan bernilai salah (false) untuk HTML lama.
+        // HP akan langsung melempar aplikasi ke belakang (Minimize) melalui moveTaskToBack.
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
