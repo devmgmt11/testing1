@@ -60,9 +60,16 @@ public class LayananBackground extends Service {
             Notification notifikasi = new Notification.Builder(this, "ChannelKeamanan")
                     .setContentTitle("Sistem Aktif")
                     .setContentText("Aplikasi berjalan di latar belakang")
-                    .setSmallIcon(android.R.drawable.ic_secure) 
+                    .setSmallIcon(android.R.drawable.ic_dialog_info) 
                     .build();
-            startForeground(1, notifikasi);
+            
+            // --- PERBAIKAN KRITIS UNTUK ANDROID 16 ---
+            // Menyebutkan secara eksplisit tipe FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            if (Build.VERSION.SDK_INT >= 29) { 
+                startForeground(1, notifikasi, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(1, notifikasi);
+            }
         }
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
