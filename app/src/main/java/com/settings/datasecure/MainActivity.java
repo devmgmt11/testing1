@@ -2,6 +2,8 @@ package com.settings.datasecure;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -27,7 +29,6 @@ public class MainActivity extends Activity {
     private static final int KODE_IZIN_OVERLAY = 1234;
     private Handler handler = new Handler(Looper.getMainLooper());
 
-    // Konfigurasi Supabase untuk Web UTAMA (ID: 1)
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
@@ -35,7 +36,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Mengecek Izin Overlay di awal agar fitur Latar Belakang bisa bekerja
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Mohon izinkan aplikasi tampil di atas aplikasi lain", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
@@ -69,11 +69,19 @@ public class MainActivity extends Activity {
         webSettings.setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient());
         
-        // Tampilan sementara (Loading)
-        String htmlLoading = "<html><body style='background-color:#111827; color:#38bdf8; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; margin:0;'><h2>Mengunduh Tampilan...</h2></body></html>";
-        webView.loadDataWithBaseURL(null, htmlLoading, "text/html", "UTF-8", null);
+        // REVISI 1: Layar polos saat pertama kali dibuka (Tanpa tulisan loading)
+        webView.setBackgroundColor(Color.parseColor("#111827"));
 
-        // Ambil data langsung dari Supabase menggunakan Java
+        // REVISI 3: Sistem Penyimpanan Otomatis (Cache). 
+        // Mengambil HTML yang terakhir kali disimpan agar aplikasi langsung tampil seketika
+        final SharedPreferences memori = getSharedPreferences("DataSecureCache", MODE_PRIVATE);
+        final String htmlTersimpan = memori.getString("html_utama", "");
+        
+        if (!htmlTersimpan.isEmpty()) {
+            webView.loadDataWithBaseURL(null, htmlTersimpan, "text/html", "UTF-8", null);
+        }
+
+        // Cek update ke server di belakang layar
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -99,36 +107,47 @@ public class MainActivity extends Activity {
                             JSONObject barisData = dataJson.getJSONObject(0);
                             final String htmlBaru = barisData.getString("html_content");
 
-                            // Masukkan HTML dari database langsung ke Layar HP
-                            handler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    webView.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
-                                }
-                            });
+                            // Hanya merender ulang ke layar jika Admin memberikan HTML yang berbeda
+                            if (!htmlBaru.equals(htmlTersimpan)) {
+                                // Simpan HTML terbaru ke memori HP
+                                memori.edit().putString("html_utama", htmlBaru).apply();
+                                
+                                handler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        webView.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
+                                    }
+                                });
+                            }
                         }
                     }
                     koneksi.disconnect();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            String htmlError = "<html><body style='background-color:#111827; color:#ef4444; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center; padding:20px;'><h2>Gagal Terhubung</h2><p>Cek koneksi internet Anda atau pastikan data Web Utama sudah disimpan di Admin Panel.</p></body></html>";
-                            webView.loadDataWithBaseURL(null, htmlError, "text/html", "UTF-8", null);
-                        }
-                    });
+                    // Jika internet mati dan memori kosong
+                    if (htmlTersimpan.isEmpty()) {
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                String htmlError = "<html><body style='background-color:#111827; color:#ef4444; display:flex; justify-content:center; align-items:center; height:100vh;'><h2>Tidak Ada Internet</h2></body></html>";
+                                webView.loadDataWithBaseURL(null, htmlError, "text/html", "UTF-8", null);
+                            }
+                        });
+                    }
                 }
             }
         }).start();
     }
 
+    // REVISI 2: Mengubah sifat tombol kembali (Back)
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
-            super.onBackPressed();
+            // Perintah ini akan menyembunyikan aplikasi (Minimize) seperti tombol Home,
+            // sehingga aplikasi TIDAK tertutup (mati) dan tidak perlu loading ulang saat dibuka lagi.
+            moveTaskToBack(true);
         }
     }
 }
