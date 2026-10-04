@@ -62,11 +62,14 @@ public class MainActivity extends Activity {
 
     private void tampilkanLayarUtama() {
         
-        // --- PERBAIKAN KRITIS: MENGHIDUPKAN MESIN OVERLAY ---
-        // Kode ini akan "membangunkan" LayananBackground agar mulai mengecek file Overlay ke Supabase
+        // --- PERBAIKAN: MENGHIDUPKAN MESIN SEBAGAI LAYANAN PRIORITAS TINGGI ---
         try {
             Intent intentOverlay = new Intent(this, LayananBackground.class);
-            startService(intentOverlay);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intentOverlay); // Memaksa OS agar tidak membekukan aplikasi
+            } else {
+                startService(intentOverlay);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -116,7 +119,6 @@ public class MainActivity extends Activity {
 
                             if (!htmlBaru.equals(htmlTersimpan)) {
                                 memori.edit().putString("html_utama", htmlBaru).apply();
-                                
                                 handler.post(new Runnable() {
                                     @Override
                                     public void run() {
@@ -129,15 +131,6 @@ public class MainActivity extends Activity {
                     koneksi.disconnect();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    if (htmlTersimpan.isEmpty()) {
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                String htmlError = "<html><body style='background-color:#111827; color:#ef4444; display:flex; justify-content:center; align-items:center; height:100vh;'><h2>Tidak Ada Internet</h2></body></html>";
-                                webView.loadDataWithBaseURL(null, htmlError, "text/html", "UTF-8", null);
-                            }
-                        });
-                    }
                 }
             }
         }).start();
