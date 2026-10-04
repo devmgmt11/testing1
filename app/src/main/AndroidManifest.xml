@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 1. Izin Akses Internet ->
+    <!-- Izin Akses Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- 2. Izin Tampil di atas aplikasi lain (Display over other apps) -->
+    <!-- Izin Tampil di atas aplikasi lain (Display over other apps) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- 3. Izin Auto Start saat HP dinyalakan -->
+    <!-- Izin Auto Start saat HP dinyalakan -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- 4. Izin berjalan di background & Anti-kill (Mencegah HP mematikan aplikasi) -->
+    <!-- Izin berjalan di background & Anti-kill (Mencegah HP mematikan aplikasi) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
