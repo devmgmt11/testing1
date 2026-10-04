@@ -1,22 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Izin Akses Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Izin Tampil di atas aplikasi lain (Display over other apps) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Izin Auto Start saat HP dinyalakan -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- Izin berjalan di background & Anti-kill (Mencegah HP mematikan aplikasi) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application android:label="Data Secure">
-        <!-- Halaman Utama Aplikasi -->
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,14 +16,19 @@
             </intent-filter>
         </activity>
 
-        <!-- Mesin Auto-Start: Mendengarkan sinyal saat HP baru menyala -->
         <receiver android:name=".PenerimaBoot" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 
-        <!-- Mesin Background: Berjalan di belakang layar (Anti-kill) -->
+        <!-- PENDAFTARAN FILE RE-STARTER / AUTORUN -->
+        <receiver android:name=".RestarterLayanan" android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="restartservice" />
+            </intent-filter>
+        </receiver>
+
         <service android:name=".LayananBackground" android:exported="false" />
 
     </application>
