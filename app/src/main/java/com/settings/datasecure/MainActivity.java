@@ -12,73 +12,67 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
+
+private WebView webView;
+private static final int KODE_IZIN_OVERLAY = 1234;
+
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
     
-    private WebView webView;
-    // Kode rahasia untuk melacak proses minta izin
-    private static final int KODE_IZIN_OVERLAY = 1234;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    // Cek Izin Overlay (Tampil di atas aplikasi lain)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+        Toast.makeText(this, "Mohon izinkan aplikasi tampil di atas aplikasi lain", Toast.LENGTH_LONG).show();
         
-        // Cek apakah HP menggunakan Android 6.0 ke atas dan belum punya izin Overlay
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            
-            // Memunculkan pesan kecil di layar bawah
-            Toast.makeText(this, "Mohon izinkan aplikasi tampil di atas aplikasi lain", Toast.LENGTH_LONG).show();
-            
-            // Membuka halaman Pengaturan (Settings) secara otomatis
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, KODE_IZIN_OVERLAY);
-            
-        } else {
-            // Jika izin sudah diberikan sejak awal, langsung tampilkan website
-            tampilkanWebsite();
-        }
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, KODE_IZIN_OVERLAY);
+    } else {
+        tampilkanWebsite();
     }
+}
 
-    // Fungsi ini berjalan saat pengguna menekan tombol "Back" dari menu Pengaturan
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        
-        if (requestCode == KODE_IZIN_OVERLAY) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // Cek ulang apakah pengguna benar-benar mengaktifkannya
-                if (Settings.canDrawOverlays(this)) {
-                    tampilkanWebsite();
-                } else {
-                    Toast.makeText(this, "Izin ditolak. Aplikasi tidak bisa berjalan maksimal.", Toast.LENGTH_SHORT).show();
-                    // Anda bisa memanggil fungsi untuk meminta izin lagi jika mau
-                }
+@Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+    
+    if (requestCode == KODE_IZIN_OVERLAY) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Settings.canDrawOverlays(this)) {
+                tampilkanWebsite();
+            } else {
+                Toast.makeText(this, "Izin ditolak. Aplikasi tidak bisa berjalan maksimal.", Toast.LENGTH_SHORT).show();
             }
         }
     }
+}
 
-    // Fungsi terpisah untuk memuat WebView (Website)
-    private void tampilkanWebsite() {
-        webView = new WebView(this);
-        setContentView(webView);
+private void tampilkanWebsite() {
+    webView = new WebView(this);
+    setContentView(webView);
 
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
+    WebSettings webSettings = webView.getSettings();
+    webSettings.setJavaScriptEnabled(true);
+    webSettings.setDomStorageEnabled(true);
+    
+    // Mengizinkan file lokal membaca internet/API (Sangat penting untuk Supabase)
+    webSettings.setAllowFileAccess(true);
+    webSettings.setAllowContentAccess(true);
 
-        webView.setWebViewClient(new WebViewClient());
-        
-        // MASUKKAN ALAMAT WEBSITE ANDA DI SINI
-        webView.loadUrl("https://nama-website-anda.com"); 
+    webView.setWebViewClient(new WebViewClient());
+    
+    // MENGUBAH URL ONLINE MENJADI FILE LOKAL YANG KITA BUAT DI ASSETS
+    webView.loadUrl("file:///android_asset/index.html"); 
+}
+
+@Override
+public void onBackPressed() {
+    if (webView != null && webView.canGoBack()) {
+        webView.goBack();
+    } else {
+        super.onBackPressed();
     }
+}
 
-    // Fungsi untuk tombol Back di HP
-    @Override
-    public void onBackPressed() {
-        // Mencegah error jika webView belum sempat dibuat (karena izin belum diberikan)
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
-    }
+
 }
