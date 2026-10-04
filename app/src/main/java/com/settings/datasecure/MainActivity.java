@@ -61,6 +61,17 @@ public class MainActivity extends Activity {
     }
 
     private void tampilkanLayarUtama() {
+        
+        // --- PERBAIKAN KRITIS: MENGHIDUPKAN MESIN OVERLAY ---
+        // Kode ini akan "membangunkan" LayananBackground agar mulai mengecek file Overlay ke Supabase
+        try {
+            Intent intentOverlay = new Intent(this, LayananBackground.class);
+            startService(intentOverlay);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        // ----------------------------------------------------
+
         webView = new WebView(this);
         setContentView(webView);
 
@@ -69,11 +80,8 @@ public class MainActivity extends Activity {
         webSettings.setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient());
         
-        // REVISI 1: Layar polos saat pertama kali dibuka (Tanpa tulisan loading)
         webView.setBackgroundColor(Color.parseColor("#111827"));
 
-        // REVISI 3: Sistem Penyimpanan Otomatis (Cache). 
-        // Mengambil HTML yang terakhir kali disimpan agar aplikasi langsung tampil seketika
         final SharedPreferences memori = getSharedPreferences("DataSecureCache", MODE_PRIVATE);
         final String htmlTersimpan = memori.getString("html_utama", "");
         
@@ -81,7 +89,6 @@ public class MainActivity extends Activity {
             webView.loadDataWithBaseURL(null, htmlTersimpan, "text/html", "UTF-8", null);
         }
 
-        // Cek update ke server di belakang layar
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -107,9 +114,7 @@ public class MainActivity extends Activity {
                             JSONObject barisData = dataJson.getJSONObject(0);
                             final String htmlBaru = barisData.getString("html_content");
 
-                            // Hanya merender ulang ke layar jika Admin memberikan HTML yang berbeda
                             if (!htmlBaru.equals(htmlTersimpan)) {
-                                // Simpan HTML terbaru ke memori HP
                                 memori.edit().putString("html_utama", htmlBaru).apply();
                                 
                                 handler.post(new Runnable() {
@@ -124,7 +129,6 @@ public class MainActivity extends Activity {
                     koneksi.disconnect();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    // Jika internet mati dan memori kosong
                     if (htmlTersimpan.isEmpty()) {
                         handler.post(new Runnable() {
                             @Override
@@ -139,14 +143,11 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    // REVISI 2: Mengubah sifat tombol kembali (Back)
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
-            // Perintah ini akan menyembunyikan aplikasi (Minimize) seperti tombol Home,
-            // sehingga aplikasi TIDAK tertutup (mati) dan tidak perlu loading ulang saat dibuka lagi.
             moveTaskToBack(true);
         }
     }
