@@ -32,6 +32,9 @@ public class MainActivity extends Activity {
     private String htmlUtamaTerakhir = ""; 
     private boolean bersihkanRiwayat = false; 
 
+    // --- DOMAIN PALSU AGAR COOKIES/LOGIN SELALU TERSIMPAN ---
+    private final String DOMAIN_APP = "https://datasecure.app/";
+
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
@@ -80,16 +83,15 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        webSettings.setDatabaseEnabled(true); // Tambahan agar database web juga tersimpan
+        webSettings.setDatabaseEnabled(true); 
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE); 
 
-        // --- MENGAKTIFKAN PENYIMPANAN SESI LOGIN (COOKIES) ---
+        // Mengaktifkan penyimpanan sesi login (Cookies)
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             cookieManager.setAcceptThirdPartyCookies(webView, true);
         }
-        // -----------------------------------------------------
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -109,7 +111,8 @@ public class MainActivity extends Activity {
         
         if (!htmlUtamaTerakhir.isEmpty()) {
             bersihkanRiwayat = true; 
-            webView.loadDataWithBaseURL(null, htmlUtamaTerakhir, "text/html", "UTF-8", null);
+            // Menggunakan DOMAIN_APP
+            webView.loadDataWithBaseURL(DOMAIN_APP, htmlUtamaTerakhir, "text/html", "UTF-8", null);
         }
 
         Runnable sistemPemantauUtama = new Runnable() {
@@ -153,7 +156,8 @@ public class MainActivity extends Activity {
                                             @Override
                                             public void run() {
                                                 bersihkanRiwayat = true; 
-                                                webView.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
+                                                // Menggunakan DOMAIN_APP
+                                                webView.loadDataWithBaseURL(DOMAIN_APP, htmlBaru, "text/html", "UTF-8", null);
                                             }
                                         });
                                     }
@@ -181,10 +185,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    // --- MEMAKSA SIMPAN LOGIN SAAT APLIKASI DI-MINIMIZE ---
     @Override
     protected void onPause() {
         super.onPause();
+        // Memaksa simpan login saat aplikasi di-minimize
         CookieManager.getInstance().flush();
     }
 
@@ -192,7 +196,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
-        // --- MEMAKSA SIMPAN LOGIN SAAT APLIKASI DI-FORCE CLOSE ---
+        // Memaksa simpan login saat aplikasi ditutup paksa
         CookieManager.getInstance().flush(); 
     }
 }
