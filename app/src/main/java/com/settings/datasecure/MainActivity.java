@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -29,8 +30,6 @@ public class MainActivity extends Activity {
     private static final int KODE_IZIN_OVERLAY = 1234;
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlUtamaTerakhir = ""; 
-    
-    // FLAG BARU: Penanda kapan riwayat halaman harus dihapus
     private boolean bersihkanRiwayat = false; 
 
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
@@ -81,14 +80,21 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true); // Tambahan agar database web juga tersimpan
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE); 
-        
-        // --- PERBAIKAN: MENGHAPUS RIWAYAT WEB ---
+
+        // --- MENGAKTIFKAN PENYIMPANAN SESI LOGIN (COOKIES) ---
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            cookieManager.setAcceptThirdPartyCookies(webView, true);
+        }
+        // -----------------------------------------------------
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // Begitu HTML baru selesai dimuat ke layar, hapus ingatan HTML lama!
                 if (bersihkanRiwayat) {
                     view.clearHistory(); 
                     bersihkanRiwayat = false;
@@ -102,7 +108,7 @@ public class MainActivity extends Activity {
         htmlUtamaTerakhir = memori.getString("html_utama", "");
         
         if (!htmlUtamaTerakhir.isEmpty()) {
-            bersihkanRiwayat = true; // Tandai agar riwayat dihapus
+            bersihkanRiwayat = true; 
             webView.loadDataWithBaseURL(null, htmlUtamaTerakhir, "text/html", "UTF-8", null);
         }
 
@@ -146,7 +152,7 @@ public class MainActivity extends Activity {
                                         handler.post(new Runnable() {
                                             @Override
                                             public void run() {
-                                                bersihkanRiwayat = true; // Tandai agar riwayat dihapus lagi saat HTML update selesai
+                                                bersihkanRiwayat = true; 
                                                 webView.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
                                             }
                                         });
@@ -168,9 +174,6 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // Karena riwayat halaman sebelumnya sudah dihapus oleh 'clearHistory', 
-        // webView.canGoBack() akan bernilai salah (false) untuk HTML lama.
-        // HP akan langsung melempar aplikasi ke belakang (Minimize) melalui moveTaskToBack.
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
@@ -178,9 +181,18 @@ public class MainActivity extends Activity {
         }
     }
 
+    // --- MEMAKSA SIMPAN LOGIN SAAT APLIKASI DI-MINIMIZE ---
+    @Override
+    protected void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush();
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
+        // --- MEMAKSA SIMPAN LOGIN SAAT APLIKASI DI-FORCE CLOSE ---
+        CookieManager.getInstance().flush(); 
     }
 }
