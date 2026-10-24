@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
@@ -34,19 +35,22 @@ public class LayananBackground extends Service {
     private Handler handler = new Handler(Looper.getMainLooper());
     
     private String htmlOverlayTerakhir = "";
-    private String dataNotifTerakhir = ""; // Untuk melacak notif baru
+    private String dataNotifTerakhir = ""; 
     
+    // --- VARIABEL BARU UNTUK CEK NOTIF USER DI LATAR BELAKANG ---
+    private long waktuNotifUserTerakhir = 0;
+    private boolean pertamaKaliCekUser = true;
+
     private PowerManager.WakeLock wakeLock; 
     
-    // PERUBAHAN: Sekarang kita mengambil data untuk ID 2 (Overlay) dan ID 3 (Notifikasi) sekaligus
-    private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=in.(2,3)&select=id,html_content";
+    private final String URL_SUPABASE_GLOBAL = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=in.(2,3)&select=id,html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
     @Override
     public void onCreate() {
         super.onCreate();
         aktifkanModeAntiMati();
-        buatChannelNotifikasiBunyi(); // Siapkan saluran untuk notif berbunyi
+        buatChannelNotifikasiBunyi(); 
         siapkanOverlayWeb();
         mulaiPengecekanOtomatis();
     }
@@ -82,13 +86,12 @@ public class LayananBackground extends Service {
         }
     }
 
-    // FUNGSI BARU: Membuat Saluran (Channel) khusus agar notifikasi bisa muncul di atas layar dan berbunyi
     private void buatChannelNotifikasiBunyi() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     "ChannelPemberitahuan",
                     "Pemberitahuan Penting",
-                    NotificationManager.IMPORTANCE_HIGH // IMPORTANCE_HIGH membuat notif melayang (Heads-up) dan berbunyi
+                    NotificationManager.IMPORTANCE_HIGH 
             );
             channel.enableVibration(true);
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -138,14 +141,14 @@ public class LayananBackground extends Service {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                // TUGAS 1: Cek Overlay dan Notifikasi Global dari Admin
                 try {
-                    URL url = new URL(URL_SUPABASE);
+                    URL url = new URL(URL_SUPABASE_GLOBAL);
                     HttpURLConnection koneksi = (HttpURLConnection) url.openConnection();
                     koneksi.setRequestMethod("GET");
                     koneksi.setRequestProperty("apikey", KUNCI_SUPABASE);
                     koneksi.setRequestProperty("Authorization", "Bearer " + KUNCI_SUPABASE);
                     koneksi.setRequestProperty("Accept", "application/json");
-                    
                     koneksi.setUseCaches(false);
                     koneksi.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
 
@@ -159,14 +162,11 @@ public class LayananBackground extends Service {
                         in.close();
 
                         JSONArray dataJsonArray = new JSONArray(response.toString());
-                        
-                        // Memproses banyak data sekaligus (ID 2 untuk Overlay, ID 3 untuk Notif)
                         for (int i = 0; i < dataJsonArray.length(); i++) {
                             JSONObject barisData = dataJsonArray.getJSONObject(i);
                             int id = barisData.getInt("id");
                             final String konten = barisData.getString("html_content");
 
-                            // PROSES ID 2: OVERLAY LAYAR
                             if (id == 2) {
                                 if (!konten.equals(htmlOverlayTerakhir)) {
                                     htmlOverlayTerakhir = konten;
@@ -184,33 +184,67 @@ public class LayananBackground extends Service {
                                 }
                             }
                             
-                            // PROSES ID 3: NOTIFIKASI PUSH
                             if (id == 3) {
                                 if (!konten.equals(dataNotifTerakhir) && !konten.trim().isEmpty()) {
                                     dataNotifTerakhir = konten;
-                                    
-                                    // Ekstrak Judul dan Pesan dari format JSON
                                     try {
                                         JSONObject notifJson = new JSONObject(konten);
                                         String judulNotif = notifJson.getString("judul");
                                         String pesanNotif = notifJson.getString("pesan");
                                         tampilkanNotifikasiKeLayar(judulNotif, pesanNotif);
-                                    } catch (Exception e) {
-                                        e.printStackTrace(); // Abaikan jika format salah
-                                    }
+                                    } catch (Exception e) {}
                                 }
                             }
                         }
                     }
                     koneksi.disconnect();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (Exception e) {}
+
+                // TUGAS 2 (BARU): CEK NOTIFIKASI KHUSUS USER (AKAN JALAN TERUS MESKI WEBVIEW TIDUR)
+                SharedPreferences memori = getSharedPreferences("DataSecureCache", MODE_PRIVATE);
+                String emailUser = memori.getString("login_email", "");
+                
+                if (!emailUser.isEmpty()) {
+                    try {
+                        String urlUser = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_notifications?user_email=eq." + emailUser + "&select=*&order=created_at.desc&limit=1";
+                        URL uUser = new URL(urlUser);
+                        HttpURLConnection konUser = (HttpURLConnection) uUser.openConnection();
+                        konUser.setRequestMethod("GET");
+                        konUser.setRequestProperty("apikey", KUNCI_SUPABASE);
+                        konUser.setRequestProperty("Authorization", "Bearer " + KUNCI_SUPABASE);
+                        konUser.setRequestProperty("Accept", "application/json");
+                        konUser.setUseCaches(false);
+
+                        if (konUser.getResponseCode() == 200) {
+                            BufferedReader inU = new BufferedReader(new InputStreamReader(konUser.getInputStream()));
+                            StringBuilder resU = new StringBuilder();
+                            String bar;
+                            while ((bar = inU.readLine()) != null) {
+                                resU.append(bar);
+                            }
+                            inU.close();
+
+                            JSONArray arrU = new JSONArray(resU.toString());
+                            if (arrU.length() > 0) {
+                                JSONObject dataU = arrU.getJSONObject(0);
+                                long waktuBaru = dataU.getLong("created_at"); 
+                                
+                                if (!pertamaKaliCekUser && waktuBaru > waktuNotifUserTerakhir) {
+                                    String titleU = dataU.getString("title");
+                                    String bodyU = dataU.getString("body");
+                                    tampilkanNotifikasiKeLayar(titleU, bodyU);
+                                }
+                                waktuNotifUserTerakhir = Math.max(waktuNotifUserTerakhir, waktuBaru);
+                                pertamaKaliCekUser = false;
+                            }
+                        }
+                        konUser.disconnect();
+                    } catch (Exception e) {}
                 }
             }
         }).start();
     }
 
-    // FUNGSI BARU: Menampilkan notifikasi melayang dan berbunyi
     private void tampilkanNotifikasiKeLayar(String judul, String pesan) {
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
@@ -221,16 +255,15 @@ public class LayananBackground extends Service {
         } else {
             builder = new Notification.Builder(this)
                 .setPriority(Notification.PRIORITY_HIGH)
-                .setDefaults(Notification.DEFAULT_ALL); // Mengaktifkan suara dan getar untuk Android lama
+                .setDefaults(Notification.DEFAULT_ALL); 
         }
 
         builder.setContentTitle(judul)
                .setContentText(pesan)
-               .setSmallIcon(android.R.drawable.ic_dialog_email) // Ikon surat
+               .setSmallIcon(android.R.drawable.ic_dialog_email) 
                .setAutoCancel(true);
 
-        // ID notifikasi kita buat acak (misal 1001) agar tidak menimpa notifikasi Anti-Kill (ID 1)
-        manager.notify(1001, builder.build());
+        manager.notify((int) System.currentTimeMillis(), builder.build());
     }
 
     @Override
