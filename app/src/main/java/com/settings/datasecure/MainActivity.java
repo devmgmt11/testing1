@@ -266,4 +266,3 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().flush(); 
     }
 }
-```
