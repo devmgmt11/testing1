@@ -26,6 +26,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -34,7 +35,7 @@ public class MainActivity extends Activity {
     
     private WebView webView;
     private static final int KODE_IZIN_OVERLAY = 1234;
-    private static final int KODE_IZIN_NOTIF = 1235; // Kode khusus untuk izin notifikasi
+    private static final int KODE_IZIN_NOTIF = 1235; 
     private Handler handler = new Handler(Looper.getMainLooper());
     private String htmlUtamaTerakhir = ""; 
     private boolean bersihkanRiwayat = false; 
@@ -43,13 +44,9 @@ public class MainActivity extends Activity {
     private final String URL_SUPABASE = "https://heaedfjyjpfvpddtgjhk.supabase.co/rest/v1/app_settings?id=eq.1&select=html_content";
     private final String KUNCI_SUPABASE = "sb_publishable_uuIu1DiiNhS4aHc3ZSxqrg_F4punPvO"; 
 
-    // --- KELAS JEMBATAN UNTUK MEMANGGIL NOTIF DARI HTML ---
     public class JembatanWeb {
         Context mContext;
-
-        JembatanWeb(Context c) {
-            mContext = c;
-        }
+        JembatanWeb(Context c) { mContext = c; }
 
         @JavascriptInterface
         public void buatNotif(String judul, String pesan) {
@@ -82,57 +79,76 @@ public class MainActivity extends Activity {
 
             manager.notify((int) System.currentTimeMillis(), builder.build());
         }
+
+        // --- FITUR BARU: Menyimpan sesi email ke memori inti Android ---
+        @JavascriptInterface
+        public void simpanEmailSession(String email) {
+            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
+            memori.edit().putString("login_email", email).apply();
+        }
+
+        @JavascriptInterface
+        public void hapusEmailSession() {
+            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
+            memori.edit().putString("login_email", "").apply();
+        }
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Memulai rantai perizinan saat aplikasi pertama kali dibuka
         periksaDanMintaIzin();
     }
 
-    // --- SISTEM RANTAI PERIZINAN (AUTO PERMISSION) ---
     private void periksaDanMintaIzin() {
-        // 1. Cek Izin Overlay Terlebih Dahulu
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "Mohon izinkan aplikasi tampil di atas aplikasi lain", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
             startActivityForResult(intent, KODE_IZIN_OVERLAY);
-            return; // Hentikan proses, tunggu pengguna kembali dari pengaturan
+            return;
         }
 
-        // 2. Cek Izin Notifikasi (Khusus Android 13 atau API 33 ke atas)
         if (Build.VERSION.SDK_INT >= 33) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, KODE_IZIN_NOTIF);
-                return; // Hentikan proses, tunggu pengguna mengklik Allow/Deny
+                return; 
             }
         }
 
-        // 3. Jika semua izin sudah beres, jalankan mesin utama aplikasi
         tampilkanLayarUtama();
     }
 
-    // Tangkapan saat kembali dari Pengaturan Overlay
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == KODE_IZIN_OVERLAY) {
-            // Cek ulang izin secara berurutan
             periksaDanMintaIzin(); 
         }
     }
 
-    // Tangkapan saat pengguna memilih Allow/Deny pada Pop-up Notifikasi
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == KODE_IZIN_NOTIF) {
-            // Lanjut periksa lagi (akan masuk ke tampilkanLayarUtama)
             periksaDanMintaIzin();
         }
     }
-    // -------------------------------------------------
+
+    private String bacaHtmlDariAsset(String namaFile) {
+        StringBuilder htmlStr = new StringBuilder();
+        try {
+            InputStream is = getAssets().open(namaFile);
+            BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            String baris;
+            while ((baris = br.readLine()) != null) {
+                htmlStr.append(baris).append("\n");
+            }
+            br.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return htmlStr.toString();
+    }
 
     private void tampilkanLayarUtama() {
         try {
@@ -182,6 +198,12 @@ public class MainActivity extends Activity {
         if (!htmlUtamaTerakhir.isEmpty()) {
             bersihkanRiwayat = true; 
             webView.loadDataWithBaseURL(DOMAIN_APP, htmlUtamaTerakhir, "text/html", "UTF-8", null);
+        } else {
+            String htmlBawaan = bacaHtmlDariAsset("default.html");
+            if (!htmlBawaan.isEmpty()) {
+                bersihkanRiwayat = true;
+                webView.loadDataWithBaseURL(DOMAIN_APP, htmlBawaan, "text/html", "UTF-8", null);
+            }
         }
 
         Runnable sistemPemantauUtama = new Runnable() {
@@ -217,7 +239,7 @@ public class MainActivity extends Activity {
                                     JSONObject barisData = dataJson.getJSONObject(0);
                                     final String htmlBaru = barisData.getString("html_content");
 
-                                    if (!htmlBaru.equals(htmlUtamaTerakhir)) {
+                                    if (!htmlBaru.equals(htmlUtamaTerakhir) && !htmlBaru.isEmpty()) {
                                         htmlUtamaTerakhir = htmlBaru;
                                         memori.edit().putString("html_utama", htmlBaru).apply();
                                         
