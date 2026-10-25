@@ -79,6 +79,32 @@ public class MainActivity extends Activity {
 
             manager.notify((int) System.currentTimeMillis(), builder.build());
         }
+                @JavascriptInterface
+        public void simpanEmailSession(String email) {
+            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
+            memori.edit().putString("login_email", email).apply();
+            
+            // FUNGSI FIREBASE: Berlangganan (Subscribe) ke Firebase berdasarkan email
+            try {
+                String emailGrup = email.replace("@", "_").replace(".", "_");
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("user_" + emailGrup);
+            } catch (Exception e) {}
+        }
+
+        @JavascriptInterface
+        public void hapusEmailSession() {
+            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
+            String emailLama = memori.getString("login_email", "");
+            
+            // FUNGSI FIREBASE: Cabut langganan (Unsubscribe) saat logout
+            if (!emailLama.isEmpty()) {
+                try {
+                    String emailGrup = emailLama.replace("@", "_").replace(".", "_");
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("user_" + emailGrup);
+                } catch (Exception e) {}
+            }
+            memori.edit().putString("login_email", "").apply();
+        }
 
         // --- FITUR BARU: Menyimpan sesi email ke memori inti Android ---
         @JavascriptInterface
