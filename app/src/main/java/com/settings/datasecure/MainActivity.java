@@ -79,7 +79,8 @@ public class MainActivity extends Activity {
 
             manager.notify((int) System.currentTimeMillis(), builder.build());
         }
-                @JavascriptInterface
+
+        @JavascriptInterface
         public void simpanEmailSession(String email) {
             SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
             memori.edit().putString("login_email", email).apply();
@@ -105,26 +106,13 @@ public class MainActivity extends Activity {
             }
             memori.edit().putString("login_email", "").apply();
         }
-
-        // --- FITUR BARU: Menyimpan sesi email ke memori inti Android ---
-        @JavascriptInterface
-        public void simpanEmailSession(String email) {
-            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
-            memori.edit().putString("login_email", email).apply();
-        }
-
-        @JavascriptInterface
-        public void hapusEmailSession() {
-            SharedPreferences memori = mContext.getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
-            memori.edit().putString("login_email", "").apply();
-        }
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-            // Daftar ulang ke Firebase jika app direstart
+        // Daftar ulang ke Firebase jika app direstart
         SharedPreferences memori = getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
         String emailAktif = memori.getString("login_email", "");
         if (!emailAktif.isEmpty()) {
@@ -133,6 +121,7 @@ public class MainActivity extends Activity {
                 com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("user_" + emailGrup);
             } catch (Exception e) {}
         }
+        
         periksaDanMintaIzin();
     }
 
