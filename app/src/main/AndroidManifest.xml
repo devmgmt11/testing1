@@ -11,9 +11,6 @@
     <!-- IZIN WAJIB BARU UNTUK ANDROID 14, 15, dan 16 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application android:label="Paypal Business"
                 android:icon="@drawable/ic_launcher">
@@ -41,6 +38,15 @@
             android:name=".LayananBackground" 
             android:exported="false" 
             android:foregroundServiceType="dataSync" />
+                <!-- PENDAFTARAN LAYANAN FIREBASE (FCM) -->
+        <service
+            android:name=".LayananFirebase"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        
 
     </application>
 </manifest>
