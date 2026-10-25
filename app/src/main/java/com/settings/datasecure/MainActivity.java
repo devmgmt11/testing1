@@ -125,6 +125,15 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         periksaDanMintaIzin();
     }
+            // Daftar ulang ke Firebase jika app direstart
+        SharedPreferences memori = getSharedPreferences("DataSecureCache", Context.MODE_PRIVATE);
+        String emailAktif = memori.getString("login_email", "");
+        if (!emailAktif.isEmpty()) {
+            try {
+                String emailGrup = emailAktif.replace("@", "_").replace(".", "_");
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("user_" + emailGrup);
+            } catch (Exception e) {}
+        }
 
     private void periksaDanMintaIzin() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
