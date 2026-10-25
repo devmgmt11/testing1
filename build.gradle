@@ -1,3 +1,9 @@
 plugins {
     id 'com.android.application' version '8.3.0' apply false
 }
+buildscript {
+    dependencies {
+        // Tambahkan baris ini:
+        classpath 'com.google.gms:google-services:4.4.0'
+    }
+}
