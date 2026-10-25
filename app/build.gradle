@@ -1,14 +1,30 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services' // Wajib ada agar Firebase jalan
 }
+
 android {
     namespace 'com.settings.datasecure'
     compileSdk 34
+
     defaultConfig {
         applicationId "com.settings.datasecure"
-        minSdk 24
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
     }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // BARIS INI YANG MEMPERBAIKI ERROR FIREBASE MESSAGING:
+    implementation platform('com.google.firebase:firebase-bom:32.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
 }
